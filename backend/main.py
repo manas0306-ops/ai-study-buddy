@@ -73,19 +73,49 @@ def api_root():
         "status": "operational"
     }
 
+from fastapi.responses import FileResponse, HTMLResponse
+
 # Mount static frontend build if dist folder exists for unified single-port production run
 dist_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
-if os.path.isdir(dist_dir):
+index_file = os.path.join(dist_dir, "index.html")
+
+if os.path.isdir(dist_dir) and os.path.isdir(os.path.join(dist_dir, "assets")):
     app.mount("/assets", StaticFiles(directory=os.path.join(dist_dir, "assets")), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        if full_path.startswith("api/") or full_path == "api" or full_path.startswith("docs") or full_path.startswith("openapi"):
-            return None
-        index_file = os.path.join(dist_dir, "index.html")
-        if os.path.exists(index_file):
-            return FileResponse(index_file)
-        return {"error": "Frontend not built yet. Run `npm run build` in frontend/"}
+@app.get("/")
+async def serve_root():
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>AI Study Buddy Setup</title>
+        <style>
+            body { font-family: system-ui, sans-serif; text-align: center; padding: 60px 20px; background: #0f172a; color: white; }
+            .card { max-width: 500px; margin: 0 auto; background: #1e293b; padding: 30px; rounded: 20px; border-radius: 16px; }
+            a { color: #818cf8; text-decoration: none; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>🎓 AI Study Buddy Backend Running!</h2>
+            <p style="color: #94a3b8; font-size: 14px;">The API is live. To access the interactive web application:</p>
+            <p style="margin-top: 20px;"><a href="/docs" style="display:inline-block; padding: 10px 20px; background: #6366f1; color: white; border-radius: 8px;">Explore API Docs (/docs)</a></p>
+            <p style="color: #64748b; font-size: 12px; margin-top: 20px;">Or run <code>npm run dev</code> inside <code>frontend/</code> to launch the Vite dev server at <a href="http://localhost:5173">http://localhost:5173</a>.</p>
+        </div>
+    </body>
+    </html>
+    """)
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    if full_path.startswith("api/") or full_path == "api" or full_path.startswith("docs") or full_path.startswith("openapi"):
+        return None
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return serve_root()
 
 if __name__ == "__main__":
     import uvicorn
